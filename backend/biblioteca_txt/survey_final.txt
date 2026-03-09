@@ -1,0 +1,448 @@
+Studiu privind managementul termic, energetic și al
+fiabilității în arhitecturile multi-core moderne
+1st Ț igău Gabriel-Aurelian
+Facultatea de Inginerie electrică și știința calculatoarelor
+Universitatea Transilvania din Brasov
+Brasov, Brasov
+gabriel.tigau@student.unitbv.ro, Reg. No. 4LF722046
+2nd Popa Dragoș-Adrian
+Facultatea de Inginerie electrică și știința calculatoarelor
+Universitatea Transilvania din Brasov
+Brasov, Brasov
+dragos-adrian.popa@student.unitbv.ro, Reg. No. 4LF722034
+Abstract—Acest studiu prezintă o analiză comparativă extinsă
+a tehnicilor de management termic, energetic și al fiabilității în
+arhitecturile multi-core moderne. Lucrarea evaluează tranziția
+de la metodele reactive tradiționale (DPM) la strategii predic-
+tive avansate și arhitecturi eterogene. Sunt analizate critic trei
+direcții majore, contextualizate prin literatura recentă din 2025:
+utilizarea replicării dinamice a sarcinilor pentru nivelare termică
+(ReTMiC), controlul predictiv bazat pe modele fizice (RC)
+versus modele termodinamice stocastice, și descărcarea funcțiilor
+sistemului de operare în hardware (FPGA) pentru eficienț ă
+energetică. Rezultatele sintetizate demonstrează că strategiile
+predictive pot reduce variațiile termice cu până la 3.5 grade
+Celsiuș în timp ce implementările hardware ale planificatorului
+pot diminua consumul energetic cu până la 89% prin utilizarea
+eficientă a stărilor de repauș oferind soluții viabile pentru
+limitările impuse de ”Dark Silicon”.
+Index Terms—Mixed-criticality systemș multicore platformș
+task replication, embedded systemș thermal balancing, RC
+thermal model, hardware-based scheduling, FPGA offloading,
+dark silicon.
+I. INTRODUCERE
+ˆIn era Dark Silicon, densitatea de putere în procesoare a
+devenit o constrângere fundamentală, limitând performanța
+maximă teoretică a cipurilor multi-core. Această lucrare anal-
+izează soluții integrate pentru Reliability-Aware Thermal Man-
+agemenț o temă care a evoluat rapid de la mecanisme reactive
+simple la modele termodinamice complexe propuse recent în
+literatura anului 2025 [1].
+A. Necesitate
+Creșterea numărului de nuclee pe cip face imposibilă al-
+imentarea simultană a tuturor componentelor fără a depăși
+Thermal Design Power (TDP) [2]. Această limitare generează
+puncte fierbinți (hotspots) și gradienți termici severi, fenomene
+care accelerează degradarea fizică a tranzistorilor și reduc dra-
+matic timpul mediu până la defectare (MTTF), conform anal-
+izelor recente asupra sistemelor many-core [3]. ˆIn sistemele
+Mixed-Criticality, ignorarea acestor constrângeri termice duce
+inevitabil la mecanisme de throttling forțat și ratarea deadline-
+urilor [4].
+B. Motivație
+Motivația
+centrală
+rezidă
+în
+ineficiența
+metodelor
+tradiționale DPM (Dynamic Power Management) în fața
+densității
+termice
+actuale.
+Literatura
+de
+specialitate
+[5]
+subliniază că tehnicile clasice, precum DVFS (Dynamic
+Voltage
+and
+Frequency
+Scaling),
+nu
+mai
+pot
+garanta
+fiabilitatea fără o planificare termică integrată.
+De asemenea, strategiile energetice specifice serverelor [6]
+necesită o adaptare riguroasă la resursele limitate ale sis-
+temelor embedded. Acest context motivează tranziția spre
+arhitecturi eterogene, capabile să decupleze gestiunea puterii
+de execuția efectivă a sarcinilor [7].
+C. Explicarea Temei
+Lucrarea investighează convergența dintre algoritmi soft-
+ware și suport hardware. Se analizează strategia ReTMiC
+pentru netezirea profilului termic [4] și controlul predictiv
+bazat pe modele RC [2]. Pentru a oferi o imagine completă
+asupra stadiului actual, se menționează că cercetările din
+2025 propun deja trecerea de la modelele deterministe la
+analize ale dinamicii temperaturii nucleelor [8] și chiar la
+modele stocastice bazate pe termodinamică pentru o precizie
+superioară [1].
+D. Obiective
+Obiectivele acestui survey sunt:
+1) Analiza strategiilor de scheduling sub constrângeri stricte
+de TDP și fiabilitate, evidențiind riscurile ”Dark Silicon”
+[3].
+2) Compararea eficienței algoritmilor de control predictiv
+versus reactiv în contextul noilor modele termice [1].
+3) Evaluarea impactului descărcării (offloading) funcțiilor
+RTOS în hardware pentru eficiență energetică [7].
+4) Identificarea compromisului optim între QoS și durata de
+viață a echipamentului.
+E. Terminologie și Concepte Cheie
+Pentru claritate, sunt definiți termenii tehnici utilizați:
+• TDP (Thermal Design Power): Puterea maximă disipată
+permisă de sistemul de răcire [3].
+• DPM (Dynamic Power Management): Ansamblu de
+tehnici pentru reducerea consumului dinamic și static [5].
+• Dark Silicon: Porțiunea de cip care trebuie oprită pentru
+a menține temperatura în limite sigure [3].
+• ReTMiC: Algoritm de planificare ce utilizează replicarea
+pentru echilibrare termică [4].
+II. STUDIU DE CAZ: RETMIC - MANAGEMENT TERMIC Ș I
+DE FIABILITATE PRIN REPLICARE
+Acest capitol detaliază arhitectura și performanțele metodei
+ReTMiC (Reliability-Aware Thermal Management Schedul-
+ing) [4]. Soluția se adresează problemelor critice de disipare
+a căldurii în sistemele embedded multi-core care rulează
+aplicații cu criticitate mixtă [4].
+A. Obiectivele și Contribuția Ș tiințifică
+A fost dezvoltată o strategie de scheduling care vizează
+echilibrarea temperaturii pe cip pentru a preveni degradarea
+fiabilității [4]. Principalele contribuții sunt:
+• Replicare Dinamică: Utilizarea tehnicii de Task Replica-
+tion nu doar pentru toleranța la erori (conform standard-
+ului DO-178B), ci și ca mecanism activ de management
+termic [4].
+• Respectarea TDP: Algoritmul garantează că puterea
+maximă consumată nu depășește limita de Thermal De-
+sign Power (TDP) în niciun moment al execuției [4].
+• Balansare Hibridă: O abordare în două etape (Offline
+și Online) care minimizează variațiile de temperatură
+spațiale (∆θ) și temporale [4].
+B. Motivația Cercetării
+Studiul este motivat de fenomenul Dark Silicon și de
+riscurile asociate hotspot-urilor, o problemă fundamentală în
+sistemele many-core, unde gradienții termici severi pot induce
+defecte permanente [3]. Recenț s-a demonstrat că analiza
+statică nu mai este suficientă, fiind necesară o înțelegere
+profundă a dinamicii temperaturii nucleelor pentru a preveni
+degradarea [8].
+ReTMiC abordează aceste provocări prin combaterea:
+• Uzura Accelerată: Temperaturile neuniforme dintre nu-
+clee duc la o îmbătrânire prematură a siliciului, reducând
+durata de viață a sistemului [4].
+• Limitări TDP: Creșterea numărului de nuclee face im-
+posibilă alimentarea simultană a tuturor la frecvență
+maximă;
+metodele
+reactive
+clasice
+(ex.
+throttling)
+afectează performanța sarcinilor critice (HC) [4].
+C. Metodologie și Algoritmi
+Metoda ReTMiC este implementată în două faze interconec-
+tate, având ca obiectiv matematic minimizarea variației termice
+spațiale (∆θ) pe cip:
+Minimize: ∆θ = θC
+Max −θC
+Min
+(1)
+Unde θC
+Max și θC
+Min reprezintă temperatura maximă, respectiv
+minimă, înregistrată pe oricare dintre nucleele cipului la un
+moment dat [4].
+1) Faza Offline (Design Time): ˆIn această fază, sistemul
+efectuează calculele complexe pentru a reduce overhead-ul la
+rulare:
+• Calculul Replicilor: Se utilizează algoritmul de calcul al
+replicilor (notat ca Algoritmul 1 în [4]) pentru a determina
+numărul minim de replici necesare fiecărui task HC,
+ajustând nivelurile de tensiune/frecvență (v −f) pentru
+a minimiza energia [4].
+• Mapare și Planificare: Se aplică o strategie de planifi-
+care statică (Algoritmul 2 din [4]), asigurând că puterea
+cumulată a task-urilor active nu depășește TDP-ul [4].
+• Factori de Balansare (BF): Pentru a decide ordinea re-
+mapării, se calculează un scor numit Factorul de Bal-
+ansare (BF):
+BF =
+
+1 −tslack
+tblock
+
+· θ∞
+i
++ θAmb
+(2)
+Unde: tslack este timpul de repaus disponibil, tblock
+lungimea totală a blocului, θ∞
+i
+temperatura de regim
+staționar (steady-state) a task-ului i, iar θAmb este tem-
+peratura ambientală [4]. Această formulă ponderează tem-
+peratura generată de task cu timpul de pauză disponibil,
+permițând algoritmului să identifice task-urile fierbinți
+care nu au suficient timp de răcire.
+2) Faza Online (Runtime):
+La execuție, un manager
+lightweight intervine în punctele de balansare (BP) predefinite:
+• Re-mapare Termică: Conform strategiei de re-mapare
+(Algoritmul 4 din [4]), task-ul cu cel mai mare BF
+(cel mai problematic termic) este mutat dinamic pe
+nucleul fizic cu temperatura curentă minimă (θcurr =
+min(θcores)) [4].
+• Utilizarea Slack-ului: Timpul eliberat prin terminarea
+anticipată a task-urilor sau anularea replicilor este folosit
+pentru a executa mai multe task-uri non-critice (LC),
+îmbunătățind QoS-ul [4].
+D. Rezultate Experimentale
+Pentru validare, s-a utilizat un framework de simulare
+complex, detaliat în Tabelul I. Evaluările comparative au
+demonstrat eficiența metodei ReTMiC [4]:
+• Reducerea Temperaturii: Temperatura maximă a cipului
+a scăzut cu până la 12.8 grade Celsiuș iar temperatura
+medie cu 9.7 grade față de metodele de referință [4].
+• Echilibru Termic: Variația spațială a temperaturii (∆θ) a
+fost redusă cu 3.5 grade, eliminând hotspot-urile critice
+[4].
+• Putere și Fezabilitate: Consumul de putere de vârf a fost
+redus cu 30.11%, iar rata de succes în planificarea task-
+urilor a crescut cu 15.5% [4].
+TABLE I
+SPECIFICAȚ IILE SISTEMULUI SIMULAT ˆIN RETMIC [4]
+Componentă
+Detalii Tehnice
+Procesor
+ARM Cortex A15 (Out-of-Order)
+Configurații
+4, 9, 16 și 36 de nuclee (Mesh NoC)
+Tehnologie
+22nm, TDP global setat la valoare fixă
+Memorie
+L1 (32KB), L2 (2MB), RAM (2GB)
+Toolchain
+gem5 (performanță), McPAT (putere)
+Workload
+Benchmark-uri PARSEC
+Fig. 1. Analiza comparativă a temperaturii tranzitorii. ReTMiC (barele gri)
+obține cele mai mici temperaturi maxime [4].
+III. STUDIU DE CAZ: CONTROLUL PREDICTIV AL
+TEMPERATURII BAZAT PE MODELUL RC
+Lucrarea [2] propune depășirea limitărilor gestionării ter-
+mice reactive printr-un mecanism de control predictiv. Această
+abordare se bazează pe un model fizic echivalent RC
+(Rezistență-Capacitate), capabil să anticipeze fluctuațiile de
+temperatură ale nucleelor și să ajusteze proactiv frecvența de
+operare [2].
+A. Motivația și Limitări ale Abordărilor Clasice
+ˆIn procesoarele moderne, densitatea de putere a cres-
+cut exponențial odată cu reducerea nodurilor tehnologice.
+Metodele tradiționale de tip Dynamic Thermal Management
+(DTM) sunt preponderent reactive, introducând:
+• Histerezis Termic: Temperatura continuă să crească din
+inerție chiar și după activarea mecanismelor de răcire [2].
+• Penalizări de Performanță: Răcirea reactivă tinde să fie
+agresivă, reducând frecvența la minim, ceea ce afectează
+sever throughput-ul aplicațiilor [2].
+B. Fundamentare Teoretică: Modelarea Fizică
+Contribuția centrală a lucrării este dezvoltarea unui model
+matematic riguros care leagă consumul de putere de dinamica
+temperaturii.
+1) Modelul de Consum al Puterii: Puterea totală a unui pro-
+cesor multi-core este descompusă în putere dinamică (Pdyn) și
+putere statică sau de scurgere (Pleak). Se subliniază că, pentru
+tehnologii sub 30nm, Pleak devine dominantă și este puternic
+dependentă de temperatură [2]. Modelul propus este:
+Ptotal = αCfV 2
+dd
+|
+{z
+}
+Pdyn
++ (a1T 2e
+a2
+T + a3)Vdd
+|
+{z
+}
+Pleak
+(3)
+Explicatia termenilor [2]: α este factorul de activitate; C este
+capacitatea totală de sarcină; f, Vdd sunt frecvența și tensiunea;
+T este temperatura joncțiunii; iar a1, a2, a3 sunt parametri
+tehnologici dependenți de procesul de fabricație, determinați
+prin fitare experimentală.
+2) Modelul Termic RC: Pentru a prezice temperatura, se
+utilizează analogia electro-termică. Cipul este modelat ca o
+rețea de rezistențe termice (Rth) și capacități termice (Cth)
+[2]. Deși modelul RC este standardul actual, cercetări din 2025
+sugerează că acesta poate fi limitat în scenarii cu fluctuații
+rapide. Există propuneri recente pentru modele bazate pe
+termodinamică stocastică [1], însă rezultatele din [2] demon-
+strează că pentru controlul în timp real, modelul RC oferă cel
+mai bun compromis precizie-complexitate.
+Ecuația diferențială care descrie evoluția temperaturii unui
+nucleu în timp este:
+dT(t)
+dt
+= −T(t)
+RthCth
++ P(t)
+Cth
+(4)
+3) Algoritmul de Control Predictiv: Pe baza modelului RC,
+a fost implementat un algoritm de control care rulează în timp
+real. Spre deosebire de metodele standard reactive, această
+strategie evaluează temperatura viitoare prezisă și simulează
+matematic efectul unei schimbări de stare (Pstate) înainte de
+a o aplica efectiv. Astfel, sistemul poate lua decizii preventive
+pentru a menține temperatura sub pragul critic.
+C. Rezultate și Performanțe
+Evaluarea comparativă pe o platformă Intel Atom x5-Z8350
+(14nm) a evidențiat îmbunătățiri:
+• Acuratețea Predicției: Modelul RC a demonstrat o eroare
+de predicție sub 1 grad Celsius pentru un orizont de timp
+de 1 secundă și sub 2.5 grade pentru 3 secunde [2].
+• Stabilitatea Sistemului: Variația temperaturii a fost redusă
+cu 3%. Graficele experimentale (Fig. 2) arată că algo-
+ritmul predictiv menține temperatura într-o bandă mai
+îngustă [2].
+• Economia de Resurse: S-a obținut o economie de resurse
+de calcul de 1.5% și o experiență mai fluidă în aplicații
+sensibile la latență (ex. jocuri) [2].
+Fig. 2. Validarea preciziei modelului termic: Temperatura prezisă urmărește
+fidel temperatura măsurată experimental [2].
+IV. STUDIU DE CAZ: EFICIENȚ Ă ENERGETIC Ă PRIN
+OFFLOADING RTOS ˆIN HARDWARE
+Studiul [7] investighează o arhitectură eterogenă pe cip
+(SoC) menită să reducă overhead-ul software al sistemului de
+operare.
+A. Obiectivele și Contribuția Ș tiințifică
+Studiul propune o arhitectură multi-core bazată pe Network-
+on-Chip (NoC) în care funcțiile critice ale sistemului de
+operare în timp real (RTOS) sunt migrate din software în
+hardware reconfigurabil (FPGA). Principalele contribuții sunt:
+• RTOS Offloading: Implementarea planificatorului de
+sarcini direct în circuite logice pentru a elimina timpii
+morți.
+• Management Hibrid de Putere: Un procesor Master ges-
+tionează tensiunea globală, iar procesoarele Slave aplică
+local scalarea frecvenței și clock gating [7].
+B. Metodologie și Implementare
+Sistemul este împărțit într-o ierarhie Master-Slave, imple-
+mentată pe un cip Xilinx Zynq (vezi Fig. 3):
+• Master PE (ARM Cortex-A9): Monitorizează consumul
+global și ajustează tensiunea cipului.
+• Slave PE (MicroBlaze): Procesoare soft-core imple-
+mentate în FPGA care execută task-urile utilizatorului.
+Fiecare Slave are atașat un modul hardware de planificare
+și un mecanism de Clock Gating [7].
+Specificațiile tehnice detaliate ale platformei experimentale
+sunt centralizate în Tabelul II.
+TABLE II
+PLATFORMA HARDWARE UTILIZAT Ă ˆIN STUDIU [7]
+Componentă
+Specificații
+Platformă
+Xilinx Zynq XC7Z020 (FPGA + CPU)
+Master PE
+Dual-Core ARM Cortex-A9 @ 667MHz
+Slave PE
+3 x MicroBlaze Soft-Processors (în FPGA)
+RTOS
+FreeRTOS (modificat pentru offloading)
+1) Algoritmul de Planificare Hardware: Mecanismul hard-
+ware funcționează într-un ciclu continuu, dar mult mai rapid
+decât echivalentul software [7]:
+• Selecția Priorității: Un comparator hardware identifică
+instantaneu cea mai mare prioritate din lista Ready.
+• Arbitrarea Round-Robin: Dacă există priorități egale,
+circuitul selectează task-ul care a rulat cel mai puțin.
+• Declanșarea Execuției: Modulul trimite o întrerupere di-
+rectă cu ID-ul următorului task.
+Această abordare elimină complet buclele de așteptare din
+software, reducând latența de comutare.
+Fig. 3. Arhitectura sistemului eterogen propus: Master PE (ARM) controlează
+regulatorul de tensiune, iar Slave PEs (FPGA) execută task-urile [7].
+C. Rezultate Experimentale
+Studiul a demonstrat beneficii majore:
+• Performanță: Planificatorul hardware a redus overhead-ul
+cu 33.33% față de un RTOS standard, iar jitter-ul a fost
+redus la zero [7].
+• Energie: Combinarea scalării tensiunii cu clock gating-ul
+granular a redus consumul total de energie cu 89.47%
+pentru scenariile cu perioade lungi de execuție [7].
+V. CONCLUZII Ș I ANALIZ Ă COMPARATIV Ă
+Studiul a analizat trei direcții majore pentru gestionarea
+constrângerilor fizice în sistemele multi-core, evidențiind avan-
+tajele tranziției de la mecanisme reactive la soluții proactive
+și integrate hardware-software.
+Analiza comparativă relevă că metoda ReTMiC [4] și con-
+trolul predictiv RC [2] se concentrează pe menținerea sta-
+bilității termice sub sarcini intense, însă utilizează mecanisme
+diferite. ˆIn timp ce [2] acționează la nivel fizic prin ajustarea
+fină a tensiunii (V, f) pe baza unei predicții matematice
+precise (eroare < 1◦C), metoda din [4] acționează la nivel
+de planificare (scheduling), folosind redundanța spațială (repli-
+carea sarcinilor) pentru a nivela temperatura pe cip. Această
+diferență face ca soluția din [2] să fie mai eficientă pentru
+economisirea resurselor de calcul (1.5%), în timp ce [4] oferă
+o protecție superioară împotriva punctelor fierbinți locale (∆θ
+redus cu 3.5◦C), fiind preferabilă în sistemele critice unde
+fiabilitatea este prioritară.
+ˆIn contrast cu primele două abordări care sunt emina-
+mente software, soluția propusă în [7] schimbă paradigma
+prin intervenție arhitecturală. Prin mutarea logicii de decizie
+(RTOS) în hardware (FPGA), obține reduceri de energie mult
+mai drastice (aprox. 90%) față de [4] (30%), însă cu costul
+unei complexități hardware sporite.
+Se concluzionează că nu există o soluție universală: pentru
+sistemele safety-critical cu constrângeri stricte de fiabilitate,
+abordarea bazată pe replicare din [4] este optimă; pentru
+dispozitivele mobile limitate termic, controlul predictiv din
+[2] oferă cel mai bun raport performanță-stabilitate, iar pentru
+sistemele ultra-low-power, arhitectura eterogenă din [7] este
+indispensabilă.
+REFERENCES
+[1] X. Peng, L. Yan, Q. Li, X. Ge, and Y. Li, “Modeling and optimization
+of power consumption for multi-core processors: A thermodynamic
+perspective,” Results in Engineering, vol. 26, p. 104837, 2025.
+[2] L. Wang and T. Zhao, “Implementation of temperature prediction and
+dynamic control in multi-core processorș” in 2024 4th International Con-
+ference on Electronic Information Engineering and Computer Technology
+(EIECT).
+IEEE, 2024, pp. 1–6.
+[3] A. Das and A. Kumar, “Runtime thermal management of many-core
+systemș” in Post-Binary Policy.
+IntechOpen, 2018, ch. 9.
+[4] S. Safari, M. Ansari, S. Hessabi, and J. Henkel, “Retmic: Reliability-
+aware thermal management in multicore mixed-criticality embedded
+systemș” IEEE Accesș vol. 13, pp. 33 157–33 175, 2025.
+[5] K. M. Attia, M. A. El-Hosseini, and H. A. Ali, “Dynamic power
+management techniques in multi-core architectures: A survey study,” Ain
+Shams Engineering Journal, vol. 8, no. 3, pp. 445–456, 2017.
+[6] N. M. Asghari, M. Mandjeș and A. Walid, “Optimizing energy man-
+agement in multi-core serverș” in Proceedings of the 3rd International
+Conference on Future Energy Systems.
+ACM, 2012, pp. 1–10.
+[7] G. Akg¨un, B. Kolarov, H. Kalberlah, C. Wulf, M. Willig, J. Rettkowski,
+and D. G¨ohringer, “Exploration of power-savings on multi-core architec-
+tures with offloaded real-time operating system,” IEEE Accesș vol. 12,
+pp. 11 294–11 313, 2024.
+[8] L. Ladge and Y. S. Rao, “Analysis of core temperature dynamics in multi-
+core processorș” Journal of Low Power Electronics and Applicationș
+vol. 15, no. 1, p. 68, 2025.

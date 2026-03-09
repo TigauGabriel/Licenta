@@ -1,0 +1,189 @@
+[
+  {
+    "topic": "survey_final",
+    "question_text": "Ce reprezintă conceptul de 'Dark Silicon' în contextul arhitecturilor multi-core moderne?",
+    "options": [
+      "Un tip de memorie cache care nu consumă energie în starea de repaus.",
+      "O zonă a procesorului care este defectă din fabricație.",
+      "Tehnologia de fabricare a tranzistorilor sub pragul de 10nm.",
+      "Porțiunea de cip care trebuie menținută inactivă pentru a nu depăși limitele termice sigure."
+    ],
+    "correct_answer_index": 3
+  },
+  {
+    "topic": "survey_final",
+    "question_text": "Care este definiția corectă a indicatorului TDP (Thermal Design Power)?",
+    "options": [
+      "Puterea maximă disipată permisă de sistemul de răcire al echipamentului.",
+      "Variația maximă de temperatură între două nuclee adiacente.",
+      "Puterea minimă necesară pentru ca procesorul să poată boota.",
+      "Energia totală consumată de un task pe întreaga durată a execuției sale."
+    ],
+    "correct_answer_index": 0
+  },
+  {
+    "topic": "survey_final",
+    "question_text": "Cum afectează gradienții termici severi fiabilitatea sistemelor many-core conform textului?",
+    "options": [
+      "Cresc performanța prin accelerarea frecvenței de ceas.",
+      "Nu au niciun impact asupra hardware-ului, afectând doar software-ul.",
+      "Îmbunătățesc eficiența energetică prin reducerea rezistenței electrice.",
+      "Reduc timpul mediu până la defectare (MTTF) prin accelerarea degradării fizice."
+    ],
+    "correct_answer_index": 3
+  },
+  {
+    "topic": "survey_final",
+    "question_text": "Care este principala limitare a metodelor tradiționale DPM (Dynamic Power Management) și DVFS identificată în studiu?",
+    "options": [
+      "Sunt compatibile doar cu arhitecturile single-core.",
+      "Sunt prea complexe pentru a fi implementate în hardware.",
+      "Consumă mai multă energie decât sarcinile pe care le gestionează.",
+      "Nu pot garanta fiabilitatea fără o planificare termică integrată în contextul densității actuale."
+    ],
+    "correct_answer_index": 3
+  },
+  {
+    "topic": "survey_final",
+    "question_text": "Ce inovație aduce algoritmul ReTMiC în gestionarea sistemelor cu criticitate mixtă?",
+    "options": [
+      "Elimină complet necesitatea utilizării memoriei RAM.",
+      "Înlocuiește toate nucleele ARM cu unități FPGA.",
+      "Rulează toate sarcinile la tensiune maximă pentru a reduce latența.",
+      "Utilizează replicarea dinamică a sarcinilor (Task Replication) ca mecanism activ de management termic."
+    ],
+    "correct_answer_index": 3
+  },
+  {
+    "topic": "survey_final",
+    "question_text": "Care este obiectivul matematic principal al fazei de design în ReTMiC?",
+    "options": [
+      "Minimizarea numărului de replici pentru sarcinile de joasă criticitate (LC).",
+      "Minimizarea variației termice spațiale (delta theta) între nuclee.",
+      "Reducerea numărului de tranzistori utilizați per nucleu.",
+      "Maximizarea frecvenței de operare a nucleelor periferice."
+    ],
+    "correct_answer_index": 1
+  },
+  {
+    "topic": "survey_final",
+    "question_text": "În formula Factorului de Balansare (BF), ce reprezintă parametrul 'tslack'?",
+    "options": [
+      "Frecvența maximă suportată de un nucleu fizic.",
+      "Timpul de repaus disponibil (idle time) în cadrul unui bloc.",
+      "Temperatura de regim staționar a unui task.",
+      "Timpul total de execuție al sistemului de operare."
+    ],
+    "correct_answer_index": 1
+  },
+  {
+    "topic": "survey_final",
+    "question_text": "Ce acțiune specifică are loc în faza 'Online' a algoritmului ReTMiC la punctele de balansare (BP)?",
+    "options": [
+      "Se dublează tensiunea de alimentare pentru a termina task-urile mai rapid.",
+      "Se șterg toate replicile sarcinilor de înaltă criticitate (HC).",
+      "Task-ul cu cel mai mare BF este mutat pe nucleul cu temperatura curentă minimă.",
+      "Sistemul se oprește complet pentru răcire pasivă."
+    ],
+    "correct_answer_index": 2
+  },
+  {
+    "topic": "survey_final",
+    "question_text": "Care este avantajul principal al controlului predictiv bazat pe modelul RC față de metodele reactive (DTM)?",
+    "options": [
+      "Evită histerezisul termic prin anticiparea fluctuațiilor și ajustarea proactivă a frecvenței.",
+      "Nu necesită senzori de temperatură pe cip.",
+      "Este mai simplu de implementat matematic.",
+      "Funcționează exclusiv pe baza puterii statice, ignorând puterea dinamică."
+    ],
+    "correct_answer_index": 0
+  },
+  {
+    "topic": "survey_final",
+    "question_text": "Conform modelului de putere prezentat, ce se întâmplă cu puterea de scurgere (Pleak) la tehnologii sub 30nm?",
+    "options": [
+      "Este eliminată prin utilizarea arhitecturilor eterogene.",
+      "Devine neglijabilă în raport cu puterea dinamică.",
+      "Rămâne constantă indiferent de variațiile de tensiune.",
+      "Devine dominantă și este puternic dependentă de temperatură."
+    ],
+    "correct_answer_index": 3
+  },
+  {
+    "topic": "survey_final",
+    "question_text": "Ce analogie stă la baza modelului termic RC utilizat pentru predicția temperaturii?",
+    "options": [
+      "Analogia electro-termică (rezistențe și capacități termice).",
+      "Analogia stocastică bazată pe mecanica cuantică.",
+      "Analogia dintre frecvența procesorului și presiunea fluidelor.",
+      "Analogia între fluxul de date și fluxul magnetic."
+    ],
+    "correct_answer_index": 0
+  },
+  {
+    "topic": "survey_final",
+    "question_text": "Ce direcție nouă de cercetare pentru anul 2025 este menționată pentru o precizie superioară a modelării termice?",
+    "options": [
+      "Modele stocastice bazate pe termodinamică.",
+      "Utilizarea exclusivă a răcirii cu azot lichid.",
+      "Eliminarea completă a planificatorului din sistemul de operare.",
+      "Modele deterministe bazate pe instrucțiuni x86."
+    ],
+    "correct_answer_index": 0
+  },
+  {
+    "topic": "survey_final",
+    "question_text": "În studiul privind offloading-ul RTOS, ce componentă hardware preia funcția de planificare a sarcinilor?",
+    "options": [
+      "Unitatea de management al memoriei (MMU).",
+      "Un nucleu dedicat ARM Cortex-A15.",
+      "Circuite logice implementate în FPGA.",
+      "Controlerul de memorie DDR4."
+    ],
+    "correct_answer_index": 2
+  },
+  {
+    "topic": "survey_final",
+    "question_text": "Care a fost reducerea maximă a consumului de energie obținută prin arhitectura eterogenă cu offloading RTOS și clock gating?",
+    "options": [
+      "15.5%",
+      "89.47%",
+      "30.11%",
+      "3.5%"
+    ],
+    "correct_answer_index": 1
+  },
+  {
+    "topic": "survey_final",
+    "question_text": "Ce impact a avut implementarea hardware a planificatorului asupra jitter-ului în sistemul RTOS?",
+    "options": [
+      "Jitter-ul a devenit impredictibil (stocastic).",
+      "Jitter-ul a crescut din cauza complexității FPGA.",
+      "Jitter-ul a fost redus la zero.",
+      "Jitter-ul a rămas neschimbat față de implementarea software."
+    ],
+    "correct_answer_index": 2
+  },
+  {
+    "topic": "survey_final",
+    "question_text": "Conform analizei comparative finale, care soluție este considerată optimă pentru sistemele ultra-low-power?",
+    "options": [
+      "Arhitectura eterogenă cu offloading în hardware (FPGA).",
+      "Metoda ReTMiC bazată pe replicare.",
+      "Controlul predictiv bazat pe modelul RC.",
+      "Sistemele tradiționale bazate pe throttling reactiv."
+    ],
+    "correct_answer_index": 0
+  },
+  {
+    "topic": "survey_final",
+    "question_text": "Care este diferența fundamentală de abordare între ReTMiC și modelul predictiv RC?",
+    "options": [
+      "Nu există nicio diferență, ambele fiind identice ca mecanism de execuție.",
+      "RC vizează fiabilitatea, în timp ce ReTMiC vizează doar consumul de energie.",
+      "ReTMiC este o soluție hardware, în timp ce RC este pur software.",
+      "ReTMiC acționează la nivel de scheduling, în timp ce RC acționează la nivel fizic (V, f)."
+    ],
+    "correct_answer_index": 3
+  }
+]
