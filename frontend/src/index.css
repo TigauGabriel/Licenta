@@ -1,0 +1,52 @@
+@import "tailwindcss";
+
+@theme {
+  --animate-fade-in-up: fade-in-up 0.5s ease-out forwards;
+
+  @keyframes fade-in-up {
+    0% {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+
+/* --- SCROLLBAR CU EFECT DE GLOW --- */
+
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0B0F19;
+}
+
+::-webkit-scrollbar-thumb {
+  /* Gradient standard - Indigo spre Purple */
+  background: linear-gradient(180deg, #6366f1 0%, #a855f7 100%);
+  border-radius: 100px;
+  border: 2px solid #0B0F19; /* Spațiu între thumb și track */
+}
+
+/* EFECTUL DE GLOW LA HOVER */
+::-webkit-scrollbar-thumb:hover {
+  /* Culori mult mai aprinse la hover */
+  background: linear-gradient(180deg, #818cf8 0%, #c084fc 100%);
+  
+  /* Adăugăm o umbră "neon" care se revarsă peste track */
+  box-shadow: 0 0 15px 2px rgba(168, 85, 247, 0.6);
+  
+  /* Facem bara să pară mai "plină" la atingere */
+  border-width: 1px; 
+}
+
+/* Pentru Firefox (limitat, dar păstrăm culorile vii) */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #a855f7 #0B0F19;
+}
