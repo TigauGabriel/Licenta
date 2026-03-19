@@ -79,4 +79,4 @@ npm run dev
 
 ![Study Room](./screenshots/chat.png)
 ![Quiz Arena](./screenshots/quiz.png)
-![Prezentare](./screenshots/presentation.png)
+![Prezentare](./screenshots/prezentare.png)
