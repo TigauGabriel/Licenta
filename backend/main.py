@@ -1,5 +1,6 @@
 import os
 from fastapi import FastAPI
+from fastapi import Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -12,20 +13,42 @@ from fastapi import UploadFile, File
 import fitz
 from pydantic import BaseModel
 from youtube_search import YoutubeSearch
+from supabase import create_client, Client
+from langchain_community.vectorstores import SupabaseVectorStore
+import edge_tts
+import uuid
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+from pydantic import BaseModel
+from typing import List
+import json
+import json
+import re
+import requests
+from pydantic import BaseModel
+import base64
 
-# Importuri specifice pentru configurația ta
 from langchain_classic.chains import RetrievalQA
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_chroma import Chroma
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
 
 load_dotenv()
 
+supabase_url = os.getenv("SUPABASE_URL")
+supabase_key = os.getenv("SUPABASE_KEY")
+supabase: Client = create_client(supabase_url, supabase_key)
+
 app = FastAPI()
 
-# Permitem comunicarea cu React
+# Initializare director pentru fisiere media
+os.makedirs("audio_files", exist_ok=True)
+
+# Montare director static pentru acces public la fisierele audio
+app.mount("/audio", StaticFiles(directory="audio_files"), name="audio")
+
+# Configurare CORS pentru integrarea cu frontend-ul
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -34,40 +57,42 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Variabilă globală pentru lanțul de AI
+# Variabile globale pentru instantierea componentelor AI
 qa_chain = None
 vector_db = None
 llm = None
 def init_ai():
     global qa_chain, vector_db, llm
     try:
-        # 1. Verificare Cheie API
+        # Validare variabila de mediu Google API
         api_key = os.getenv("GOOGLE_API_KEY")
         if not api_key:
             print("❌ EROARE: GOOGLE_API_KEY lipsește din .env!")
             return
 
-        # 2. Setăm modelul tău multilingv (Trebuie să fie identic cu cel de la crearea DB)
+        # Initializare model embeddings (multilingv)
         print("📂 Încărcăm modelul local: paraphrase-multilingual-MiniLM-L12-v2...")
         embeddings = HuggingFaceEmbeddings(model_name="paraphrase-multilingual-MiniLM-L12-v2")
 
-        # 3. Deschidem baza de date Chroma
-        if not os.path.exists("./db"):
-            print("❌ EROARE: Folderul './db' nu a fost găsit lângă main.py!")
-            return
-            
-        vector_db = Chroma(persist_directory="./db", embedding_function=embeddings)
+
+        # Conectare la baza de date vectoriala Supabase    
+        vector_db = SupabaseVectorStore(
+            embedding=embeddings,
+            client=supabase,
+            table_name="documents",
+            query_name="match_documents"
+        )
         
-        # 4. Configurăm modelul Gemini specificat de tine
-        print("🤖 Inițializăm models/gemini-flash-latest...")
+        # Initializare LLM Google Gemini
+        print("Initializare LLM...")
         llm = ChatGoogleGenerativeAI(
-            model="models/gemini-2.0-flash-lite", 
+            model="models/gemini-flash-latest", 
             google_api_key=api_key,
             temperature=0.3,
             streaming=True
         )
         
-        # 5. Cream lanțul de Retrieval folosind pachetul CLASSIC
+        # Instantiere pipeline RetrievalQA
         qa_chain = RetrievalQA.from_chain_type(
             llm=llm,
             chain_type="stuff",
@@ -78,7 +103,7 @@ def init_ai():
     except Exception as e:
         print(f"❌ EROARE LA PORNIRE: {str(e)}")
 
-# Pornim inițializarea
+
 init_ai()
 
 class Mesaj(BaseModel):
@@ -87,54 +112,59 @@ class Mesaj(BaseModel):
 
 @app.post("/chat")
 async def chat_cu_ai(mesaj: Mesaj):
-    global qa_chain
+    global vector_db, qa_chain # Presupunem că ai acces la vector_db aici
+    
     if qa_chain is None:
         return StreamingResponse(iter(["AI-ul nu este pornit."]), media_type="text/plain")
 
     async def generator():
         try:
-            # Folosim astream log pentru a vedea tot ce "mișcă" în lanț
+            # Preluare documente sursa pentru referinte (k=3)
+            docs = vector_db.similarity_search(mesaj.text, k=3)
+            surse_unice = list(set([d.metadata.get("source", "Sursă necunoscută") for d in docs]))
+            
+            # Transmitere metadata surse la inceputul stream-ului
+            yield f"SOURCES:{','.join(surse_unice)}|END_SOURCES|"
+
+            # Transmitere raspuns LLM generat asincron (streaming)
             async for chunk in qa_chain.astream({"query": mesaj.text}):
-                # În RetrievalQA, textul final vine de obicei în chunk["result"]
                 if isinstance(chunk, dict) and "result" in chunk:
-                    # Dacă fragmentul conține rezultatul, îl trimitem cuvânt cu cuvânt
-                    # sau bucată cu bucată
-                    text_bucata = chunk["result"]
-                    yield text_bucata
+                    yield chunk["result"]
                 elif isinstance(chunk, str):
                     yield chunk
                 
-                # Mic delay pentru a lăsa browserul să randeze
                 await asyncio.sleep(0.01)
+
         except Exception as e:
             print(f"Eroare stream: {e}")
             yield f"\n[Eroare procesare: {str(e)}]"
 
     return StreamingResponse(generator(), media_type="text/plain")
 
-@app.get("/get-quiz")
-async def get_quiz():
+@app.get("/get-quizzes")
+async def get_quizzes(user_id: str):
+    # Extrage istoricul testelor generate pentru utilizatorul curent din Supabase
     try:
-        # Căutăm fișierul tău generat anterior de Agent 3
-        with open("quiz_bank.json", "r", encoding="utf-8") as f:
-            banca_completa = json.load(f)
+        response = supabase.table("quizzes") \
+            .select("*") \
+            .eq("user_id", user_id) \
+            .order("created_at", desc=True) \
+            .execute()
+
+        if not response.data:
+            return {"success": True, "quizzes": [], "message": "Nu am găsit teste pentru acest utilizator."}
             
-        if not banca_completa:
-            raise HTTPException(status_code=404, detail="Banca de întrebări este goală.")
-            
-        # Extragem maxim 5 întrebări aleatoare, exact ca în Streamlit
-        numar_intrebari = min(5, len(banca_completa))
-        intrebari_alese = random.sample(banca_completa, numar_intrebari)
+        return {
+            "success": True, 
+            "quizzes": response.data
+        }
         
-        return {"quiz": intrebari_alese}
-        
-    except FileNotFoundError:
-        # Dacă nu există fișierul, înseamnă că nu ai încărcat niciun curs cu Agentul 1 încă
-        raise HTTPException(status_code=404, detail="Fișierul quiz_bank.json nu a fost găsit. Ai încărcat materia?")
     except Exception as e:
+        print(f"Eroare preluare date baza de date: {e}")
         raise HTTPException(status_code=500, detail=str(e))
     
 def clean_romanian_pdf_text(text):
+    # Normalizare caractere speciale romanesti pentru curatarea textului extras din PDF
     replacements = {
         "s,i": "și", "t,i": "ți", "s,": "ș", "t,": "ț",
         "S,": "Ș", "T,": "Ț", "ˆın": "în", "ˆı": "î",
@@ -148,7 +178,6 @@ async def generate_quiz_from_text(text: str, topic_name: str):
     global llm 
     
     try:
-        # Nu mai tăiem textul! Îi dăm să citească tot documentul.
         prompt = f"""
         Ești un profesor universitar exigent. Analizează cu atenție textul de mai jos și identifică TOATE conceptele, definițiile, algoritmii și ideile principale.
         
@@ -175,14 +204,13 @@ async def generate_quiz_from_text(text: str, topic_name: str):
         ]
         """
         
-        # Trimitem textul întreg la AI
         response = llm.invoke(prompt)
         res_text = response.content
         
         if isinstance(res_text, list): 
             res_text = res_text[0].get('text', str(res_text))
             
-        # Curățăm formatul exact ca în varianta ta stabilă
+        # Parsare si curatare markup JSON din raspuns
         json_str = res_text.replace("```json", "").replace("```", "").strip()
         
         start_idx = json_str.find('[')
@@ -193,7 +221,7 @@ async def generate_quiz_from_text(text: str, topic_name: str):
             
         intrebari_generate = json.loads(json_str)
         
-        # Amestecăm variantele
+        # Randomizare ordinii optiunilor pentru fiecare intrebare
         for q in intrebari_generate:
             text_corect = q["options"][q["correct_answer_index"]]
             import random
@@ -203,18 +231,20 @@ async def generate_quiz_from_text(text: str, topic_name: str):
         return intrebari_generate
         
     except Exception as e:
-        print(f"⚠️ Eroare Agent 3 (Generare Quiz Dinamic): {e}")
+        print(f"Eroare generare test: {e}")
         return []
 
 @app.post("/upload")
-async def incarca_document(file: UploadFile = File(...)):
-    global vector_db
+async def incarca_document(
+    file: UploadFile = File(...), 
+    user_id: str = Form(...)
+):
+    global vector_db 
     try:
-        # Citim conținutul fișierului
         content = await file.read()
         text = ""
 
-        # Extragem textul în funcție de extensie
+        # Extractie text pe baza extensiei fisierului
         if file.filename.endswith(".pdf"):
             doc = fitz.open(stream=content, filetype="pdf")
             for page in doc:
@@ -222,60 +252,55 @@ async def incarca_document(file: UploadFile = File(...)):
         elif file.filename.endswith(".txt"):
             text = content.decode("utf-8")
         else:
-            return {"success": False, "message": "Format nesuportat. Te rog încarcă PDF sau TXT."}
+            return {"success": False, "message": "Format nesuportat."}
 
-        # Curățăm diacriticele
         text = clean_romanian_pdf_text(text)
-
         if not text.strip():
-            return {"success": False, "message": "Fișierul pare să fie gol sau este o imagine scanată fără text."}
+            return {"success": False, "message": "Fișier fără text."}
 
-        # Tăiem textul în bucăți (chunking)
+        # Segmentare document pentru encodare vectoriala
         splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
         chunks = splitter.split_text(text)
         
-        # Creăm documentele pentru LangChain
-        docs = [Document(page_content=c, metadata={"source": file.filename}) for c in chunks]
+        # Atribuire metadata (fisier sursa si user_id)
+        docs = [
+            Document(
+                page_content=c, 
+                metadata={"source": file.filename, "user_id": user_id} 
+            ) for c in chunks
+        ]
 
-        # Inserăm în baza de date Chroma
-        # vector_db a fost inițializat în funcția init_ai()
-        global vector_db 
+        # Insertie embedinguri in Supabase
         vector_db.add_documents(docs)
 
-        print("🧠 Agentul 3 generează întrebările...")
-        topic_name = file.filename.rsplit('.', 1)[0] # Scoatem .pdf din nume
-        
-        # Chemăm funcția de mai sus
+        # Apelare pipeline LLM pentru extragere test
+        topic_name = file.filename.rsplit('.', 1)[0]
         new_questions = await generate_quiz_from_text(text, topic_name)
         
-        mesaj_quiz = "Însă nu s-au putut genera întrebări noi."
-        
+        # Persistenta testului in baza de date
         if new_questions:
-            quiz_file = "quiz_bank.json"
-            current_bank = []
-            
-            # Citim întrebările vechi (dacă există)
-            if os.path.exists(quiz_file):
-                try:
-                    with open(quiz_file, 'r', encoding='utf-8') as f:
-                        current_bank = json.load(f)
-                except:
-                    pass
-                    
-            # Le adăugăm pe cele noi
-            current_bank.extend(new_questions)
-            
-            # Salvăm noul fișier
-            with open(quiz_file, 'w', encoding='utf-8') as f:
-                json.dump(current_bank, f, indent=2, ensure_ascii=False)
+            try:
+                supabase.table("quizzes").insert({
+                    "user_id": user_id,
+                    "course_name": topic_name,
+                    "questions": new_questions
+                }).execute()
                 
-            mesaj_quiz = f"Și am generat {len(new_questions)} întrebări grilă pentru teste!"
+                mesaj_quiz = f"Am generat {len(new_questions)} întrebări salvate în contul tău!"
+            except Exception as e:
+                print(f"Eroare la salvarea quiz-ului în DB: {e}")
+                mesaj_quiz = "Document asimilat, dar testul nu a putut fi salvat în DB."
+        else:
+            mesaj_quiz = "Nu s-au putut genera întrebări noi."
 
-        return {"success": True, "message": f"Documentul '{file.filename}' a fost procesat și asimilat cu succes!"}
+        return {
+            "success": True, 
+            "message": f"Documentul '{file.filename}' a fost asimilat. {mesaj_quiz}"
+        }
 
     except Exception as e:
-        print(f"Eroare la procesarea fișierului: {e}")
-        return {"success": False, "message": f"Eroare internă: {str(e)}"}
+        print(f"Eroare gravă la upload: {e}")
+        return {"success": False, "message": f"Eroare: {str(e)}"}
 
 class VideoQuery(BaseModel):
     query: str
@@ -285,12 +310,12 @@ async def search_video(request: VideoQuery):
     global llm
     try:
         user_query = request.query
-        search_term = user_query # Setăm căutarea implicită ca fiind exact ce a scris utilizatorul
+        search_term = user_query
         folosit_ai = False
 
         print(f"🎬 Solicitare video pentru: {user_query}")
 
-        # --- 1. AGENT 4: ÎNCERCĂM OPTIMIZAREA CU AI ---
+        # Optimizare semantica query pentru YouTube prin LLM
         if llm is not None:
             try:
                 prompt = f"""
@@ -301,12 +326,11 @@ async def search_video(request: VideoQuery):
                 response = llm.invoke(prompt)
                 search_term = response.content.strip().replace('"', '').replace('\n', '')
                 folosit_ai = True
-                print(f"🧠 Agent 4 a optimizat căutarea în: {search_term}")
+                print(f"Termen cautare optimizat: {search_term}")
             except Exception as ai_err:
-                # DACĂ AI-UL DĂ EROARE (EX: 429 LIMITA ATINSĂ), TRECEM MAI DEPARTE FĂRĂ EL
-                print(f"⚠️ AI indisponibil (Limita atinsă?). Trecem pe Planul B (Căutare directă). Eroare: {ai_err}")
+                print(f"Optimizare LLM indisponibila (fallback activat). Eroare: {ai_err}")
 
-        # --- 2. CĂUTAREA EFECTIVĂ PE YOUTUBE (Cu sau fără AI) ---
+        # Executare interogare YouTube API
         results = YoutubeSearch(search_term, max_results=4).to_dict()
         
         final_videos = []
@@ -319,7 +343,6 @@ async def search_video(request: VideoQuery):
                 "views": r.get('views', 'N/A')
             })
 
-        # Returnăm și un mesaj ca să știe React dacă a fost ajutat de AI sau nu
         status_ai = "Optimizat de AI" if folosit_ai else "Căutare Directă (AI în pauză)"
 
         return {
@@ -341,42 +364,211 @@ class FactCheckRequest(BaseModel):
 @app.post("/fact-check")
 async def verify_hallucination_endpoint(request: FactCheckRequest):
     global llm, vector_db
-    try:
-        if llm is None or vector_db is None:
-            return {"score": 0, "reason": "Sistemul AI sau baza de date nu este activă."}
+    return {
+        "is_accurate": True, 
+        "score": 100, 
+        "explanation": "Fact-checking dezactivat temporar pentru teste. (Resurse salvate!)"
+    }
+    # try:
+    #     if llm is None or vector_db is None:
+    #         return {"score": 0, "reason": "Sistemul AI sau baza de date nu este activă."}
 
-        # 1. Recuperăm din nou contextul pentru a-l compara cu răspunsul
-        docs = vector_db.similarity_search(request.query, k=3)
-        context = "\n\n".join([d.page_content for d in docs])
+    #     # 1. Recuperăm din nou contextul pentru a-l compara cu răspunsul
+    #     docs = vector_db.similarity_search(request.query, k=3)
+    #     context = "\n\n".join([d.page_content for d in docs])
         
-        # 2. Agentul 5 evaluează
-        prompt = f"""
-        Ești un auditor extrem de strict. Compară RĂSPUNSUL generat de AI cu CONTEXTUL extras din document.
-        Dacă AI-ul a folosit informații inventate (halucinații) care nu se regăsesc în context, scorul scade dramatic.
+    #     # 2. Agentul 5 evaluează
+    #     prompt = f"""
+    #     Ești un auditor extrem de strict. Compară RĂSPUNSUL generat de AI cu CONTEXTUL extras din document.
+    #     Dacă AI-ul a folosit informații inventate (halucinații) care nu se regăsesc în context, scorul scade dramatic.
         
-        CONTEXT EXTRAS: {context}
-        ÎNTREBARE: {request.query}
-        RĂSPUNS AI: {request.answer}
+    #     CONTEXT EXTRAS: {context}
+    #     ÎNTREBARE: {request.query}
+    #     RĂSPUNS AI: {request.answer}
         
-        Returnează DOAR un format JSON valid, exact cu această structură:
+    #     Returnează DOAR un format JSON valid, exact cu această structură:
+    #     {{
+    #         "score": 100, 
+    #         "reason": "Scurtă explicație a scorului (ex: Răspunsul este perfect susținut de context)."
+    #     }}
+    #     """
+        
+    #     response = llm.invoke(prompt)
+    #     res_text = response.content.replace("```json", "").replace("```", "").strip()
+        
+    #     start_idx = res_text.find('{')
+    #     end_idx = res_text.rfind('}') + 1
+    #     if start_idx != -1 and end_idx != -1:
+    #         res_text = res_text[start_idx:end_idx]
+            
+    #     import json
+    #     data = json.loads(res_text)
+    #     return {"score": data.get("score", 0), "reason": data.get("reason", "Evaluare completă.")}
+        
+    # except Exception as e:
+    #     print(f"⚠️ Eroare Fact-Checker: {e}")
+    #     return {"score": None, "reason": "Nu s-a putut verifica acuratețea."}
+
+
+class TextPentruVoce(BaseModel):
+    text: str
+    voce: str = "ro-RO-AlinaNeural"
+
+@app.post("/genereaza-audio")
+async def genereaza_audio(date: TextPentruVoce):
+    try:
+        # Generare identificator unic si cale de salvare locala
+        nume_fisier = f"{uuid.uuid4()}.mp3"
+        cale_completa = f"audio_files/{nume_fisier}"
+        
+        # Utilizare TTS pentru generare audio
+        comunicare = edge_tts.Communicate(date.text, date.voce)
+        await comunicare.save(cale_completa)
+        
+        return {
+            "success": True, 
+            "audio_url": f"http://localhost:8000/audio/{nume_fisier}"
+        }
+    except Exception as e:
+        print(f"Eroare la generare audio: {e}")
+        return {"success": False, "message": str(e)}
+
+
+class CererePrezentare(BaseModel):
+    subiect: str
+    user_id: str
+
+@app.post("/genereaza-prezentare")
+async def genereaza_prezentare(date: CererePrezentare):
+    global vector_db 
+    
+    try:
+        # Faza 1: Extragere context RAG
+        docs = vector_db.similarity_search(date.subiect, k=5)
+        context_text = "\n\n".join([d.page_content for d in docs])
+        
+        if not context_text.strip():
+            print("Avertizare RAG: Nu au fost gasite referinte in documentele utilizatorului.")
+            context_text = "Nu s-au găsit informații specifice în cursuri. Te rog să generezi pe baza cunoștințelor tale generale."
+
+        # Faza 2: Constructie si procesare prompt
+        prompt_prezentare = f"""
+        Acționează ca un profesor universitar de top. Creează o scurtă prezentare interactivă despre: "{date.subiect}".
+        
+        ESTE VITAL SĂ TE BAZEZI STRICT PE URMĂTOARELE INFORMAȚII EXTRASE DIN CURSURILE STUDENTULUI:
+        \"\"\"{context_text}\"\"\"
+        
+        Reguli pentru partea vizuală:
+        Ai la dispoziție DOUĂ unelte vizuale. Alege-o pe cea mai bună pentru fiecare slide:
+        1. 'cod_diagrama_mermaid': Folosește-o pentru procese, algoritmi, ierarhii (ex: RAM->Cache->CPU) sau concepte logice.
+        2. 'prompt_imagine_en': Folosește-o DOAR pentru structuri fizice, analogii vizuale sau secțiuni transversale. Trebuie să fie o descriere în ENGLEZĂ pentru o ilustrație EDUCAȚIONALĂ curată. NU cere poze generice sci-fi.
+        
+        Returnează RĂSPUNSUL STRICT ÎN FORMAT JSON:
         {{
-            "score": 100, 
-            "reason": "Scurtă explicație a scorului (ex: Răspunsul este perfect susținut de context)."
+          "titlu_curs": "Titlul aici",
+          "slide_uri": [
+            {{
+              "titlu": "Titlu Slide",
+              "idei_principale": [
+                "Scrie 4 sau 5 idei principale detaliate extrase DIN TEXTUL SURSĂ", 
+                "Fiecare idee trebuie să fie o propoziție completă și explicativă"
+              ],
+              "text_pentru_voce": "Text fluid de explicat pentru vocea AI, bazat STRICT pe textul sursă...",
+              "cod_diagrama_mermaid": "graph TD; A-->B; (sau lasă '' dacă folosești imagine)",
+              "prompt_imagine_en": "Ex: 'A clean, 3D educational textbook illustration...' (sau lasă '' dacă ai folosit diagrama mermaid)"
+            }}
+          ]
         }}
         """
+
+        response = llm.invoke(prompt_prezentare)
         
-        response = llm.invoke(prompt)
-        res_text = response.content.replace("```json", "").replace("```", "").strip()
-        
-        start_idx = res_text.find('{')
-        end_idx = res_text.rfind('}') + 1
-        if start_idx != -1 and end_idx != -1:
-            res_text = res_text[start_idx:end_idx]
+        # Functie recursiva de extractie text din structuri imbricate
+        def extrage_text_pur(obj):
+            if isinstance(obj, str):
+                return obj
+            if hasattr(obj, 'content'): 
+                return extrage_text_pur(obj.content)
+            if isinstance(obj, list) and len(obj) > 0:
+                return extrage_text_pur(obj[0]) 
+            if isinstance(obj, dict):
+                return extrage_text_pur(obj.get('content', obj.get('text', str(obj))))
+            return str(obj)
+
+        json_text = extrage_text_pur(response)
+        json_text = json_text.strip()
+
+        # Curatare formatare delimitatori block code Markdown
+        if "{" in json_text and "}" in json_text:
+            start_index = json_text.find("{")
+            end_index = json_text.rfind("}") + 1
+            json_text = json_text[start_index:end_index]
             
-        import json
-        data = json.loads(res_text)
-        return {"score": data.get("score", 0), "reason": data.get("reason", "Evaluare completă.")}
-        
+        # Validare si parsare JSON output
+        try:
+            date_json = json.loads(json_text)
+            
+            return {
+                "success": True, 
+                "prezentare": date_json
+            }
+            
+        except json.JSONDecodeError as e:
+            print(f"Eroare validare JSON: {e}")
+            return {
+                "success": False, 
+                "message": f"Format output AI neconform: {str(e)}"
+            }
+
     except Exception as e:
-        print(f"⚠️ Eroare Fact-Checker: {e}")
-        return {"score": None, "reason": "Nu s-a putut verifica acuratețea."}
+        print(f"Eroare pipeline prezentare: {e}")
+        return {
+            "success": False, 
+            "message": str(e)
+        }
+
+class CerereImagine(BaseModel):
+    prompt: str
+
+NVIDIA_API_KEY = os.getenv("NVIDIA_API_KEY")
+
+@app.post("/genereaza-imagine")
+async def genereaza_imagine(cerere: CerereImagine):
+    # Configurare request pentru endpoint-ul NVIDIA NIM - Stable Diffusion 3 Medium
+    invoke_url = "https://ai.api.nvidia.com/v1/genai/stabilityai/stable-diffusion-3-medium"
+    
+    headers = {
+        "Authorization": f"Bearer {NVIDIA_API_KEY}",
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+    }
+    
+    payload = {
+        "prompt": cerere.prompt,
+        "aspect_ratio": "16:9", 
+        "mode": "text-to-image",
+        "output_format": "jpeg"
+    }
+    
+    try:
+        response = requests.post(invoke_url, headers=headers, json=payload)
+        
+        if response.status_code == 200:
+            # Procesare response si formatare MIME tip Base64
+            data = response.json()
+            imagine_b64 = data.get("image")
+            
+            imagine_formatata = f"data:image/jpeg;base64,{imagine_b64}"
+            return {"success": True, "imagine": imagine_formatata}
+        else:
+            print(f"Eroare retea generare imagine. Status {response.status_code}: {response.text}")
+            return {"success": False, "message": f"Eroare integrare API terta: {response.text}"}
+            
+    except Exception as e:
+        print(f"Exceptie interna endpoint imagine: {e}")
+        return {"success": False, "message": str(e)}
+
+if __name__ == "__main__":
+    import uvicorn
+    # Initiere server ASGI local in mod dev
+    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)

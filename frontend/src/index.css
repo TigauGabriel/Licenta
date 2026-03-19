@@ -1,5 +1,6 @@
 @import "tailwindcss";
 
+/* Configurare animatii custom in ecosistemul Tailwind v4 */
 @theme {
   --animate-fade-in-up: fade-in-up 0.5s ease-out forwards;
 
@@ -15,8 +16,16 @@
   }
 }
 
-/* --- SCROLLBAR CU EFECT DE GLOW --- */
+/* Reset global DOM si fortare paleta Dark Mode pentru prevenirea artefactelor vizuale (white flashes) */
+html, body {
+  background-color: #0B0F19; 
+  color: white;
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+}
 
+/* Suprascriere engine WebKit pentru personalizarea barelor de derulare */
 ::-webkit-scrollbar {
   width: 7px;
   height: 7px;
@@ -27,25 +36,22 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  /* Gradient standard - Indigo spre Purple */
+  /* Aplicare gradient de baza si simulare padding intern prin border color-matching */
   background: linear-gradient(180deg, #6366f1 0%, #a855f7 100%);
   border-radius: 100px;
-  border: 2px solid #0B0F19; /* Spațiu între thumb și track */
+  border: 2px solid #0B0F19; 
 }
 
-/* EFECTUL DE GLOW LA HOVER */
+/* Stare :hover pentru scrollbar thumb (Generare efect Glow/Neon) */
 ::-webkit-scrollbar-thumb:hover {
-  /* Culori mult mai aprinse la hover */
   background: linear-gradient(180deg, #818cf8 0%, #c084fc 100%);
-  
-  /* Adăugăm o umbră "neon" care se revarsă peste track */
+  /* Dispersie optica (box-shadow overflow) */
   box-shadow: 0 0 15px 2px rgba(168, 85, 247, 0.6);
-  
-  /* Facem bara să pară mai "plină" la atingere */
+  /* Reducere offset border pentru iluzia de expandare la interactiune */
   border-width: 1px; 
 }
 
-/* Pentru Firefox (limitat, dar păstrăm culorile vii) */
+/* Fallback limitat pentru compatibilitate cu engine-ul Gecko (Mozilla Firefox) */
 * {
   scrollbar-width: thin;
   scrollbar-color: #a855f7 #0B0F19;

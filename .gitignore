@@ -9,3 +9,4 @@ venv/
 *.pyc
 db_users/
 db_chroma/
+audio_files/
