@@ -39,6 +39,7 @@ Sistemul este împărțit într-o arhitectură Client-Server decuplată:
 ```bash
 git clone https://github.com/TigauGabriel/Licenta
 cd Licenta
+```
 
 ### 2. Configurarea Variabilelor de Mediu (`.env`)
 Creează un fișier `.env` în rădăcina proiectului backend și adaugă următoarele chei:
