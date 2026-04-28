@@ -1,27 +1,28 @@
 import React, { useState, useEffect, useRef } from 'react';
 import mermaid from 'mermaid';
 
-// Componenta pentru randarea diagramelor Mermaid.js cu auto-adaptare la dimensiunea containerului
+// 🔥 COMPONENTA FIXATĂ PENTRU MERMAID (Se randează corect fără dubluri)
 const DiagramaMermaid = ({ cod }) => {
+  const ref = useRef(null);
+
   useEffect(() => {
-    mermaid.initialize({ 
-      startOnLoad: true, 
-      theme: 'dark',
-      flowchart: { useMaxWidth: true, htmlLabels: true, curve: 'basis' }
+    if (!ref.current || !cod) return;
+
+    // Generăm un ID unic pentru fiecare render ca să nu se încâlcească diagramele
+    const id = `mermaid-${Math.random().toString(36).substr(2, 9)}`;
+    
+    mermaid.render(id, cod).then(({ svg }) => {
+      if (ref.current) ref.current.innerHTML = svg;
+    }).catch(err => {
+      console.error("Eroare la randarea diagramei Mermaid:", err);
+      if (ref.current) ref.current.innerHTML = '<div class="text-red-400 p-4 border border-red-500/30 rounded-xl bg-red-500/10">Eroare la generarea diagramei.</div>';
     });
-    mermaid.contentLoaded();
   }, [cod]);
 
-  if (!cod) return null;
-  
-  return (
-    <div key={cod} className="mermaid flex items-center justify-center w-full h-full [&>svg]:max-w-full [&>svg]:max-h-full [&>svg]:w-auto [&>svg]:h-auto">
-      {cod}
-    </div>
-  );
+  return <div ref={ref} className="w-full h-full flex items-center justify-center animate-fade-in" />;
 };
 
-const VideoLibrary = ({ userId }) => {
+const VideoLibrary = ({ userId, onGoToQuiz }) => {
   // Stari globale pentru managementul prezentarii si navigarii
   const [subiect, setSubiect] = useState('');
   const [loading, setLoading] = useState(false);
@@ -33,13 +34,16 @@ const VideoLibrary = ({ userId }) => {
   const [audioLoading, setAudioLoading] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const audioRef = useRef(null);
+  
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
   const [imageUrl, setImageUrl] = useState(null);
   const [imageLoading, setImageLoading] = useState(false);
+  const [eroare, setEroare] = useState(null);
   
-  // Obiect pentru caching-ul imaginilor generate per sesiune
+  // Obiecte pentru caching-ul asset-urilor generate per sesiune (pentru economie de requesturi API)
   const [imaginiGenerate, setImaginiGenerate] = useState({});
+  const [audioGenerate, setAudioGenerate] = useState({});
 
   useEffect(() => {
     setImageLoaded(false);
@@ -54,6 +58,7 @@ const VideoLibrary = ({ userId }) => {
     setLoading(true);
     setPrezentare(null);
     setSlideCurent(0);
+    setEroare(null);
 
     try {
       const response = await fetch('http://localhost:8000/genereaza-prezentare', {
@@ -63,6 +68,14 @@ const VideoLibrary = ({ userId }) => {
       });
       const data = await response.json();
       
+      const eroareContextuala = data.eroare_context || data.prezentare?.eroare_context;
+
+      if (eroareContextuala) {
+        setEroare(eroareContextuala);
+        setLoading(false);
+        return; 
+      }
+
       if (data.success) {
         setPrezentare(data.prezentare);
       } else {
@@ -75,11 +88,11 @@ const VideoLibrary = ({ userId }) => {
     }
   };
 
-  // Functie pentru preluarea fisierului audio TTS aferent textului din slide
+  // 🔥 FUNCȚIA AUDIO MODIFICATĂ: Acum returnează URL-ul pentru sistemul de cache
   const incarcaVoceSlide = async (textSlide) => {
     setAudioLoading(true);
     setIsPlaying(false);
-    setAudioUrl(null);
+    let urlReturnat = null;
 
     try {
       const response = await fetch('http://localhost:8000/genereaza-audio', {
@@ -90,25 +103,20 @@ const VideoLibrary = ({ userId }) => {
       const data = await response.json();
       
       if (data.success) {
-        setAudioUrl(data.audio_url);
+        urlReturnat = data.audio_url;
       }
     } catch (err) {
       console.error("Eroare audio:", err);
-    } finally {
-      setAudioLoading(false);
-    }
+    } 
+    setAudioLoading(false);
+    return urlReturnat;
   };
 
-  /**
-   * Comunica cu API-ul backend pentru generarea imaginilor (ex: NVIDIA NIM).
-   * @param {string} prompt - Descrierea imaginii in limba engleza.
-   * @returns {Promise<string|null>} Codul Base64 al imaginii pentru caching.
-   */
+  // 🔥 FUNCȚIA IMAGINI MODIFICATĂ: Am scos antipattern-ul "finally"
   const incarcaImagineSlide = async (prompt) => {
     setImageLoading(true);
     setImageUrl(null);
     setImageError(false);
-    let imagineBase64 = null; 
 
     try {
       const response = await fetch('http://localhost:8000/genereaza-imagine', {
@@ -119,41 +127,52 @@ const VideoLibrary = ({ userId }) => {
       const data = await response.json();
       
       if (data.success) {
-        setImageUrl(data.imagine); 
-        imagineBase64 = data.imagine; 
+        setImageLoading(false);
+        return data.imagine; 
       } else {
         console.error("Eroare NVIDIA:", data.message);
         setImageError(true);
+        setImageLoading(false);
+        return null;
       }
     } catch (err) {
       console.error("Eroare retea imagine:", err);
       setImageError(true);
-    } finally {
       setImageLoading(false);
-      return imagineBase64;
+      return null;
     }
   };
 
-  // Sincronizeaza incarcarea asset-urilor la fiecare schimbare de slide.
-  // Utilizeaza imaginiGenerate ca mecanism de cache local pentru optimizarea apelurilor retea.
+  // 🔥 EFECTUL DE CACHING PENTRU IMAGINI ȘI AUDIO
   useEffect(() => {
     if (prezentare && prezentare.slide_uri[slideCurent]) {
       const slideActual = prezentare.slide_uri[slideCurent];
-      const cheieCache = `slide_${slideCurent}`;
+      const cheieCacheImagini = `slide_${slideCurent}`;
+      const cheieCacheAudio = `audio_${slideCurent}`;
       
-      incarcaVoceSlide(slideActual.text_pentru_voce);
+      // 1. Caching Audio
+      if (audioGenerate[cheieCacheAudio]) {
+        setAudioUrl(audioGenerate[cheieCacheAudio]); // Scoatem direct din cache
+      } else {
+        incarcaVoceSlide(slideActual.text_pentru_voce).then(url => {
+          if (url) {
+            setAudioUrl(url); // Setăm playerul curent
+            setAudioGenerate(prev => ({...prev, [cheieCacheAudio]: url})); // Salvăm în cache
+          }
+        });
+      }
       
+      // 2. Caching Imagini
       if (slideActual.prompt_imagine_en) {
-        if (imaginiGenerate[cheieCache]) {
-          // Incarcare instantanee din cache
-          setImageUrl(imaginiGenerate[cheieCache]);
+        if (imaginiGenerate[cheieCacheImagini]) {
+          setImageUrl(imaginiGenerate[cheieCacheImagini]);
           setImageLoading(false);
           setImageError(false);
         } else {
-          // Apel API si salvare in cache
           incarcaImagineSlide(slideActual.prompt_imagine_en).then((imagineBase64) => {
              if (imagineBase64) {
-               setImaginiGenerate(prev => ({...prev, [cheieCache]: imagineBase64}));
+               setImageUrl(imagineBase64);
+               setImaginiGenerate(prev => ({...prev, [cheieCacheImagini]: imagineBase64}));
              }
           });
         }
@@ -163,9 +182,22 @@ const VideoLibrary = ({ userId }) => {
     }
   }, [slideCurent, prezentare]);
 
+  // 🔥 FIX PENTRU BROWSER AUTOPLAY (Programatic Play)
+  useEffect(() => {
+    if (audioUrl && audioRef.current) {
+      audioRef.current.play()
+        .then(() => setIsPlaying(true))
+        .catch((e) => {
+          console.warn("Browserul a blocat autoplay-ul.", e);
+          setIsPlaying(false);
+        });
+    }
+  }, [audioUrl]);
+
   // Controale navigare limitate la numarul total de slide-uri
   const nextSlide = () => setSlideCurent(prev => Math.min(prev + 1, prezentare.slide_uri.length - 1));
   const prevSlide = () => setSlideCurent(prev => Math.max(prev - 1, 0));
+
 
   return (
     <div className="w-full h-full flex flex-col relative bg-[#0B0F19]">
@@ -207,6 +239,34 @@ const VideoLibrary = ({ userId }) => {
         </div>
       )}
 
+      {/* Banner de Eroare Elegant */}
+{eroare && (
+  <div className="bg-red-900/30 border border-red-500 text-red-200 px-4 py-4 rounded-lg relative flex items-center gap-4 mb-6 shadow-lg backdrop-blur-sm animate-pulse-once" role="alert">
+    
+    {/* Iconița de Atenționare */}
+    <div className="flex-shrink-0">
+        <svg className="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+        </svg>
+    </div>
+
+    {/* Mesajul de eroare (am adăugat pr-8 ca să nu se lovească de X) */}
+    <div className="flex-1 pr-8">
+      <span className="block sm:inline font-medium text-sm sm:text-base leading-relaxed">{eroare}</span>
+    </div>
+
+    {/* Butonul de închidere "X" - centrat vertical pe dreapta */}
+    <button 
+      onClick={() => setEroare(null)} 
+      className="absolute top-1/2 -translate-y-1/2 right-3 p-1.5 rounded-md text-red-400 hover:text-red-100 hover:bg-red-800/50 transition-colors"
+    >
+      <svg className="fill-current h-5 w-5" role="button" viewBox="0 0 20 20">
+        <path d="M14.348 14.849a1.2 1.2 0 0 1-1.697 0L10 11.819l-2.651 3.029a1.2 1.2 0 1 1-1.697-1.697l2.758-3.15-2.759-3.152a1.2 1.2 0 1 1 1.697-1.697L10 8.183l2.651-3.031a1.2 1.2 0 1 1 1.697 1.697l-2.758 3.152 2.758 3.15a1.2 1.2 0 0 1 0 1.698z"/>
+      </svg>
+    </button>
+  </div>
+)}  
+
       {/* View 2: Player-ul prezentarii (Theater Mode) */}
       {prezentare && (
         <div className="absolute inset-0 z-50 flex flex-col bg-[#080B12] animate-fade-in-up">
@@ -215,7 +275,7 @@ const VideoLibrary = ({ userId }) => {
           <div className="bg-gradient-to-r from-slate-900 to-indigo-950 px-8 py-3 flex justify-between items-center border-b border-white/10 shrink-0">
             <div>
               <h1 className="text-xl font-bold text-slate-200 tracking-wide">{prezentare.titlu_curs}</h1>
-              <p className="text-indigo-400 font-medium text-xs mt-0.5">Slide {slideCurent + 1} din {prezentare.slide_uri.length}</p>
+              <p className="text-indigo-400 font-medium text-xs mt-0.5">Slide {slideCurent + 1} din {prezentare?.slide_uri?.length}</p>
             </div>
             <button 
               onClick={() => {
@@ -270,7 +330,7 @@ const VideoLibrary = ({ userId }) => {
                 )}
 
                 {prezentare.slide_uri[slideCurent].cod_diagrama_mermaid && (
-                  <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-slate-900/40 p-6">
+                  <div className="w-full h-full flex items-center justify-center bg-slate-900/40 p-4 overflow-auto">
                     <DiagramaMermaid cod={prezentare.slide_uri[slideCurent].cod_diagrama_mermaid} />
                   </div>
                 )}
@@ -321,12 +381,23 @@ const VideoLibrary = ({ userId }) => {
               </div>
             </div>
 
-            <button 
-              onClick={nextSlide} disabled={slideCurent === prezentare.slide_uri.length - 1}
-              className="w-40 py-3 bg-indigo-600 disabled:opacity-30 rounded-xl text-sm font-bold text-white hover:bg-indigo-500 transition-colors"
-            >
-              Următor →
-            </button>
+            {/* AICI ESTE MODIFICAREA: Logica pentru butonul de Următor / Test */}
+            {slideCurent === prezentare.slide_uri.length - 1 ? (
+              <button 
+                onClick={onGoToQuiz}
+                className="w-48 py-3 bg-gradient-to-r from-purple-500 to-indigo-500 text-white text-sm font-bold rounded-xl shadow-[0_0_15px_rgba(168,85,247,0.5)] hover:scale-105 transition-all duration-300"
+              >
+                🎯 Testează-te acum!
+              </button>
+            ) : (
+              <button 
+                onClick={nextSlide} 
+                className="w-40 py-3 bg-indigo-600 rounded-xl text-sm font-bold text-white hover:bg-indigo-500 transition-colors"
+              >
+                Următor →
+              </button>
+            )}
+            
           </div>
         </div>
       )}
